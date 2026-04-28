@@ -38,7 +38,7 @@ class send_bulk_message extends \core\task\adhoc_task {
      * Sends the queued messages.
      */
     public function execute(): void {
-        global $CFG;
+        global $CFG, $PAGE;
 
         require_once($CFG->libdir . '/messagelib.php');
 
@@ -80,6 +80,7 @@ class send_bulk_message extends \core\task\adhoc_task {
                     if (empty($attachment->itemid) || empty($attachment->name)) {
                         continue;
                     }
+                    $isimage = preg_match('/\.(gif|jpe?g|png|svg|webp)$/i', $attachment->name);
                     $attachmenturl = \moodle_url::make_pluginfile_url(
                         \context_system::instance()->id,
                         'local_queuedbulkmessage',
@@ -87,7 +88,7 @@ class send_bulk_message extends \core\task\adhoc_task {
                         $attachment->itemid,
                         '/',
                         $attachment->name,
-                        true,
+                        !$isimage,
                         $user->id
                     )->out(false);
                     $attachmenttext = get_string(
@@ -97,14 +98,14 @@ class send_bulk_message extends \core\task\adhoc_task {
                     );
                     $attachmentlink = \html_writer::link($attachmenturl, $attachmenttext);
                     $messagehtml .= \html_writer::tag('p', $attachmentlink);
-                    $attachmentlines[] = $attachmenttext . "\n" . $attachmenturl;
+                    $attachmentlines[] = $isimage ? $attachmenturl : $attachmenttext . "\n" . $attachmenturl;
                 }
 
                 $plainmessage = html_to_text($data->message, 0, false);
                 if ($attachmentlines) {
                     $plainmessage .= "\n\n" . implode("\n\n", $attachmentlines);
                 }
-                $htmlmessage = $sendmode === 'private' ? nl2br(s($plainmessage)) : $data->message;
+                $htmlmessage = $sendmode === 'private' ? '' : $data->message;
                 if ($sendmode !== 'private') {
                     $htmlmessage = $messagehtml;
                 }
@@ -118,7 +119,7 @@ class send_bulk_message extends \core\task\adhoc_task {
                 $message->courseid = SITEID;
                 $message->fullmessage = $plainmessage;
                 $message->fullmessageformat = $sendmode === 'private'
-                    ? FORMAT_PLAIN
+                    ? FORMAT_MOODLE
                     : ($data->messageformat ?? FORMAT_HTML);
                 $message->fullmessagehtml = $htmlmessage;
                 $message->smallmessage = $sendmode === 'private'
@@ -126,6 +127,20 @@ class send_bulk_message extends \core\task\adhoc_task {
                     : html_to_text($data->message, 0, false);
                 $message->customdata = null;
                 $message->notification = $sendmode === 'private' ? 0 : 1;
+                if ($sendmode === 'private') {
+                    $userpicture = new \user_picture($sender);
+                    $userpicture->size = 1;
+                    $userpicture->includetoken = $user->id;
+                    $message->customdata = [
+                        'notificationiconurl' => $userpicture->get_url($PAGE)->out(false),
+                        'actionbuttons' => [
+                            'send' => get_string_manager()->get_string('send', 'message', null, $user->lang),
+                        ],
+                        'placeholders' => [
+                            'send' => get_string_manager()->get_string('writeamessage', 'message', null, $user->lang),
+                        ],
+                    ];
+                }
 
                 $messageid = message_send($message);
                 if ($messageid === false) {

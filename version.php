@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_queuedbulkmessage';
-$plugin->version = 2026042809;
+$plugin->version = 2026042810;
 $plugin->requires = 2025100600;
 $plugin->maturity = MATURITY_ALPHA;
 $plugin->release = '1.0.0-alpha';

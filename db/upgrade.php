@@ -106,5 +106,9 @@ function xmldb_local_queuedbulkmessage_upgrade(int $oldversion): bool {
         upgrade_plugin_savepoint(true, 2026042809, 'local', 'queuedbulkmessage');
     }
 
+    if ($oldversion < 2026042810) {
+        upgrade_plugin_savepoint(true, 2026042810, 'local', 'queuedbulkmessage');
+    }
+
     return true;
 }
