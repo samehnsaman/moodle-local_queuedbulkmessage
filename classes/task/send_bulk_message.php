@@ -38,7 +38,7 @@ class send_bulk_message extends \core\task\adhoc_task {
      * Sends the queued messages.
      */
     public function execute(): void {
-        global $CFG, $PAGE;
+        global $CFG;
 
         require_once($CFG->libdir . '/messagelib.php');
 
@@ -105,42 +105,30 @@ class send_bulk_message extends \core\task\adhoc_task {
                 if ($attachmentlines) {
                     $plainmessage .= "\n\n" . implode("\n\n", $attachmentlines);
                 }
-                $htmlmessage = $sendmode === 'private' ? '' : $data->message;
-                if ($sendmode !== 'private') {
-                    $htmlmessage = $messagehtml;
+                if ($sendmode === 'private') {
+                    $messageid = message_post_message($sender, $user, $plainmessage, FORMAT_MOODLE);
+                    if ($messageid === false) {
+                        mtrace("Queued bulk message was not accepted by Moodle for user {$userid}");
+                        continue;
+                    }
+
+                    mtrace("Queued bulk message accepted by Moodle for user {$userid}");
+                    continue;
                 }
 
                 $message = new \core\message\message();
-                $message->component = $sendmode === 'private' ? 'moodle' : 'local_queuedbulkmessage';
-                $message->name = $sendmode === 'private' ? 'instantmessage' : 'bulkmessage';
+                $message->component = 'local_queuedbulkmessage';
+                $message->name = 'bulkmessage';
                 $message->userfrom = $sender;
                 $message->userto = $user;
                 $message->subject = $data->subject;
                 $message->courseid = SITEID;
                 $message->fullmessage = $plainmessage;
-                $message->fullmessageformat = $sendmode === 'private'
-                    ? FORMAT_MOODLE
-                    : ($data->messageformat ?? FORMAT_HTML);
-                $message->fullmessagehtml = $htmlmessage;
-                $message->smallmessage = $sendmode === 'private'
-                    ? $plainmessage
-                    : html_to_text($data->message, 0, false);
+                $message->fullmessageformat = $data->messageformat ?? FORMAT_HTML;
+                $message->fullmessagehtml = $messagehtml;
+                $message->smallmessage = html_to_text($data->message, 0, false);
                 $message->customdata = null;
-                $message->notification = $sendmode === 'private' ? 0 : 1;
-                if ($sendmode === 'private') {
-                    $userpicture = new \user_picture($sender);
-                    $userpicture->size = 1;
-                    $userpicture->includetoken = $user->id;
-                    $message->customdata = [
-                        'notificationiconurl' => $userpicture->get_url($PAGE)->out(false),
-                        'actionbuttons' => [
-                            'send' => get_string_manager()->get_string('send', 'message', null, $user->lang),
-                        ],
-                        'placeholders' => [
-                            'send' => get_string_manager()->get_string('writeamessage', 'message', null, $user->lang),
-                        ],
-                    ];
-                }
+                $message->notification = 1;
 
                 $messageid = message_send($message);
                 if ($messageid === false) {
