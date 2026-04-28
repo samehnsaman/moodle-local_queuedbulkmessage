@@ -80,5 +80,5 @@ function local_queuedbulkmessage_pluginfile(
         return false;
     }
 
-    send_stored_file($file, 0, 0, true, $options);
+    send_stored_file($file, 0, 0, $forcedownload, $options);
 }
